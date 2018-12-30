@@ -1,7 +1,7 @@
 using Revise
 
-@everywhere using TaskMaster
 using Distributed
+using TaskMaster
 
 ######### Now some testing ###########
 
@@ -32,15 +32,17 @@ tell!(learner::IgnorantLearner,m) = nothing
 
 @everywhere f(x) = x^2
 
-tasks = RemoteChannel(()->Channel{Int}(10))
-results = RemoteChannel(()->Channel{Tuple{Int,Int}}(10))
+learner = IgnorantLearner(1:10)
 
+tasks = RemoteChannel(()->Channel{Union{Int,Nothing}}(10))
+results = RemoteChannel(()->Channel{Tuple{Any,Any}}(10))
+
+master = Master(learner,tasks,results)
 for p in workers()
-    wp = @spawnat p work(f,tasks,results)
+    captureslave!(p,f,master)
 end
 
-learner = IgnorantLearner(1:10)
-for (xi,yi) in Master(learner,tasks,results)
+for (xi,yi) in master
     @show (xi,yi)
 end
 
@@ -49,6 +51,7 @@ end
 
 @everywhere f(x) = x^2
 learner = IgnorantLearner(1:10)
+
 for (xi,yi) in Master(f,learner)
     @show (xi,yi)
 end
@@ -57,17 +60,11 @@ end
 
 @everywhere f(x) = x^2
 
-tasks = RemoteChannel(()->Channel{Int}(10))
-results = RemoteChannel(()->Channel{Tuple{Int,Int}}(10))
-
-for p in workers()
-    wp = @spawnat p work(f,tasks,results)
-end
-
 learner = IgnorantLearner(1:10)
 wlearner = WrappedLearner(learner,x->x.state!=nothing && x.state>3) 
-for (xi,yi) in Master(wlearner,tasks,results)
-     @show (xi,yi)
+
+for (xi,yi) in Master(f,wlearner)
+    @show (xi,yi)
 end
 
 @info "Testing evaluate"
@@ -75,3 +72,29 @@ end
 @everywhere f(x) = x^2
 learner = IgnorantLearner(1:10)
 evaluate(f,learner)
+
+@info "Testing evaluate with a stop condition"
+
+@everywhere f(x) = x^2
+learner = IgnorantLearner(1:10)
+#evaluate(f,WrappedLearner(learner,learner->learner.state!=nothing && learner.state>3))
+evaluate(f,learner,learner->learner.state!=nothing && learner.state>3)
+
+@info "Testing capturing and releasing of the slave"
+
+@everywhere f(x) = x^2
+learner = IgnorantLearner(1:10)
+master = Master(f,WorkerPool(),learner)
+
+captureslave!(2,f,master)
+captureslave!(3,f,master)
+@show releaseslave!(master)
+@show releaseslave!(master)
+
+@info "Success!!!"
+
+
+
+
+
+

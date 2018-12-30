@@ -6,95 +6,120 @@ tell!(learner::Learner,message) = error("For runner learner needs to implement a
 
 using Distributed
 
-function work(f,tasks,results)
-    while true
-        x = take!(tasks)
-        if x==nothing
-            break
-        else
-            y = f(x)
-            put!(results,(x,y))
-        end
-    end
-end
-
 mutable struct Master
     learner
     tasks
     results
-    workers
+    slaves 
     unresolved
 end
 
-Runner(learner,tasks,results) = Master(learner,tasks,results,[],0)
-
-function Master(f::Function,learner)
-    tasks = RemoteChannel(()->Channel{Any}(10))
-    results = RemoteChannel(()->Channel{Tuple{Any,Any}}(10))
-
-    worklist = []
-    for p in workers()
-        wp = @spawnat p work(f,tasks,results)
-        push!(worklist)
-    end
-
-    Master(learner,tasks,results,worklist,0)
-end
-
-
-import Base.iterate
-
-function iterate(runner,state) 
-
-    if runner.unresolved < nprocs()-1 
-        xi = ask!(runner.learner)
-        if xi!=nothing
-            runner.unresolved += 1
-        end
-    else
-        xi = nothing
-    end
+"""
+Releases one worker (who is the next one of taking a new task) from the duty calculating function values given him by the master. Returns pid.
+"""
+function releaseslave!(master::Master)
+    @assert length(master.slaves)>0
     
-    if xi==nothing && runner.unresolved==0
-        return nothing 
-    elseif xi!=nothing 
-        put!(runner.tasks,xi)
-        return iterate(runner,state) ### So this part would get fulled by
-     else
-        (xi,yi) = take!(runner.results)
-        tell!(runner.learner,(xi,yi))
-        runner.unresolved -= 1
-        return (xi,yi), state
+    put!(master.tasks,nothing)
+
+    while true
+        for i in 1:length(master.slaves)
+            ### I need to find first one which is free 
+            if isready(master.slaves[i])==true
+                pid = master.slaves[i].where
+                deleteat!(master.slaves,i)
+                return pid
+            end
+        end
     end
 end
 
-iterate(runner) = iterate(runner,nothing)
+"""
+Releases all workers from the Master's duties.
+"""
+function releaseall!(master::Master)
+    for s in master.slaves
+        put!(master.tasks,nothing)
+    end
 
+    
+    for s in master.slaves
+        wait(s)
+    end
 
-############## Now some abstractions #############
+    pids = [s.where for s in master.slaves]
+    master.slaves = []
 
-function evaluate(f,learner)
+    return pids
+end
 
-    tasks = RemoteChannel(()->Channel{Any}(10))
-    results = RemoteChannel(()->Channel{Tuple{Any,Any}}(10))
-
-    for p in workers()
-        @spawnat p begin
-            while true
-                x = take!(tasks)
+"""
+Gives the slave a duty to follow orders of his new Master
+"""
+function captureslave!(pid,f::Function,master::Master)
+    tasks, results = master.tasks, master.results
+    wp = @spawnat pid begin
+        while true
+            x = take!(tasks)
+            if x==nothing
+                break
+            else
                 y = f(x)
                 put!(results,(x,y))
             end
         end
     end
-
-    for (xi,yi) in Master(learner,tasks,results)
-        println("xi=$xi yi=$yi")
-    end
-    # No need to return anything since learner itself contains information
+    push!(master.slaves,wp)
 end
 
-### In the end I would need to anotate code with types. Then I will see if it can be subtyped. 
+Master(learner,tasks,results,slaves) = Master(learner,tasks,results,slaves,0)
+Master(learner,tasks,results) = Master(learner,tasks,results,[],0)
+
+function Master(f::Function,wpool::AbstractWorkerPool,learner)
+    tasks = RemoteChannel(()->Channel{Any}(10))
+    results = RemoteChannel(()->Channel{Tuple{Any,Any}}(10))
+
+    master = Master(learner,tasks,results)
+    for p in wpool.workers
+        captureslave!(p,f,master)
+    end
+
+    return master
+end
+
+Master(f::Function,learner) = Master(f,WorkerPool(nprocs()==1 ? [1] : workers()),learner)
+
+import Base.iterate
+
+function iterate(master,state) 
+
+    if master.unresolved < length(master.slaves) 
+        xi = ask!(master.learner)
+        if xi!=nothing
+            master.unresolved += 1
+        end
+    else
+        xi = nothing
+    end
+    
+    if xi==nothing && master.unresolved==0
+        ### A perfect time to release all slaves
+        releaseall!(master)
+        return nothing 
+    elseif xi!=nothing 
+        put!(master.tasks,xi)
+        return iterate(master,state) 
+     else
+        (xi,yi) = take!(master.results)
+        tell!(master.learner,(xi,yi))
+        master.unresolved -= 1
+        return (xi,yi), state
+    end
+end
+
+iterate(master) = iterate(master,nothing)
+
+############## Now some abstractions #############
 
 struct WrappedLearner
     learner
@@ -119,6 +144,19 @@ function tell!(learner::WrappedLearner,message)
     learner.tellhook(learner.learner,message)
 end
 
-export Master, work, iterate, Learner, ask!, tell!, evaluate, WrappedLearner
+function evaluate(f,wpool::AbstractWorkerPool,learner)
+    master = Master(f,wpool,learner)
+    for (xi,yi) in master
+        # 
+        println("xi=$xi yi=$yi")
+    end
+    return nothing
+end
+
+evaluate(f,wpool::AbstractWorkerPool,learner,stop) = evaluate(f,wpool,WrappedLearner(learner,stop))
+evaluate(f,learner) = evaluate(f,WorkerPool(nprocs()==1 ? [1] : workers()),learner)
+evaluate(f,learner,stop) = evaluate(f,WorkerPool(nprocs()==1 ? [1] : workers()),learner,stop)
+
+export Master, iterate, Learner, ask!, tell!, evaluate, WrappedLearner, releaseslave!, captureslave!
 
 end
