@@ -1,0 +1,7 @@
+name = "TaskMaster"
+uuid = "2f14bf60-09e4-11e9-2b32-676fc1c2075a"
+authors = ["akels <akels14@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
