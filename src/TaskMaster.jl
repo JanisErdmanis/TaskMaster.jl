@@ -4,124 +4,8 @@ abstract type Learner end
 ask!(learner::Learner) = error("For runner learner needs to implement ask! and tell! methods")
 tell!(learner::Learner,message) = error("For runner learner needs to implement ask! and tell! methods")
 
-using Distributed
 
-mutable struct Master
-    learner
-    tasks
-    results
-    slaves 
-    unresolved
-end
-
-"""
-Releases one worker (who is the next one of taking a new task) from the duty calculating function values given him by the master. Returns pid.
-"""
-function releaseslave!(master::Master)
-    @assert length(master.slaves)>0
-    
-    put!(master.tasks,nothing)
-
-    while true
-        for i in 1:length(master.slaves)
-            ### I need to find first one which is free 
-            if isready(master.slaves[i])==true
-                pid = master.slaves[i].where
-                deleteat!(master.slaves,i)
-                return pid
-            end
-        end
-    end
-end
-
-"""
-Releases all workers from the Master's duties.
-"""
-function releaseall!(master::Master)
-    for s in master.slaves
-        put!(master.tasks,nothing)
-    end
-
-    
-    for s in master.slaves
-        wait(s)
-    end
-
-    pids = [s.where for s in master.slaves]
-    master.slaves = []
-
-    return pids
-end
-
-"""
-Gives the slave a duty to follow orders of his new Master
-"""
-function captureslave!(pid,f::Function,master::Master)
-    tasks, results = master.tasks, master.results
-    wp = @spawnat pid begin
-        while true
-            x = take!(tasks)
-            if x==nothing
-                break
-            else
-                y = f(x)
-                put!(results,(x,y))
-            end
-        end
-    end
-    push!(master.slaves,wp)
-end
-
-Master(learner,tasks,results,slaves) = Master(learner,tasks,results,slaves,0)
-Master(learner,tasks,results) = Master(learner,tasks,results,[],0)
-
-function Master(f::Function,wpool::AbstractWorkerPool,learner)
-    tasks = RemoteChannel(()->Channel{Any}(10))
-    results = RemoteChannel(()->Channel{Tuple{Any,Any}}(10))
-
-    master = Master(learner,tasks,results)
-    for p in wpool.workers
-        captureslave!(p,f,master)
-    end
-
-    return master
-end
-
-Master(f::Function,learner) = Master(f,WorkerPool(nprocs()==1 ? [1] : workers()),learner)
-
-import Base.iterate
-
-function iterate(master,state) 
-
-    if master.unresolved < length(master.slaves) 
-        xi = ask!(master.learner)
-        if xi!=nothing
-            master.unresolved += 1
-        end
-    else
-        xi = nothing
-    end
-    
-    if xi==nothing && master.unresolved==0
-        ### A perfect time to release all slaves
-        releaseall!(master)
-        return nothing 
-    elseif xi!=nothing 
-        put!(master.tasks,xi)
-        return iterate(master,state) 
-     else
-        (xi,yi) = take!(master.results)
-        tell!(master.learner,(xi,yi))
-        master.unresolved -= 1
-        return (xi,yi), state
-    end
-end
-
-iterate(master) = iterate(master,nothing)
-
-############## Now some abstractions #############
-
-struct WrappedLearner
+struct WrappedLearner <: Learner
     learner
     stop
     askhook
@@ -144,19 +28,131 @@ function tell!(learner::WrappedLearner,message)
     learner.tellhook(learner.learner,message)
 end
 
-function evaluate(f,wpool::AbstractWorkerPool,learner)
-    master = Master(f,wpool,learner)
-    for (xi,yi) in master
-        # 
-        println("xi=$xi yi=$yi")
+### The interface probabily needs to be a little different
+mutable struct IgnorantLearner <: Learner
+    iter
+    state
+end
+IgnorantLearner(iter) = IgnorantLearner(iter,nothing)
+
+function ask!(learner::IgnorantLearner)
+    temp = learner.state==nothing ? iterate(learner.iter) : iterate(learner.iter,learner.state)
+    if temp==nothing
+        return nothing
+    else
+        val,learner.state = temp
+        return val
     end
-    return nothing
 end
 
-evaluate(f,wpool::AbstractWorkerPool,learner,stop) = evaluate(f,wpool,WrappedLearner(learner,stop))
-evaluate(f,learner) = evaluate(f,WorkerPool(nprocs()==1 ? [1] : workers()),learner)
-evaluate(f,learner,stop) = evaluate(f,WorkerPool(nprocs()==1 ? [1] : workers()),learner,stop)
+tell!(learner::IgnorantLearner,m) = nothing
 
-export Master, iterate, Learner, ask!, tell!, evaluate, WrappedLearner, releaseslave!, captureslave!
+abstract type Master end
+include("procmaster.jl")
+
+struct Loop
+    master::Master
+    op::Function
+    learner::Learner
+end
+#Loop(master::Function,op::Function,l::Function) = Loop(master(),op,l())
+
+function getres(loop::Loop,x)
+    put!(loop.master.tasks,x)
+    res = take!(loop.master.results)
+    tell!(loop.learner,res)
+    return res
+end
+
+function getx(loop::Loop,input)
+    feedinput = ask!(loop.learner)
+    x = loop.op(input,feedinput)
+    return x
+end
+### I could have infinity iterator which always just gives true.
+
+function evaluate(loop::Loop,iter)
+    acc = []
+
+    nparalel = length(loop.master.slaves)
+    unresolved = 0
+    
+    @sync for i in iter
+
+        ### While loop could perhaps be avoided if a fixed size Channel is used.
+        ### Perhaps I could use a fixed size Channel for the tasks.
+        ### When one spawns one needs to know if the process had been finished.
+        ### Master(f) VS f and Master()
+        while unresolved>nparalel end
+
+        x = getx(loop,i)
+        if x==nothing
+            break
+        end
+        
+        @async begin
+            unresolved+=1
+            res = getres(loop,x)
+            unresolved-=1
+            push!(acc,res)
+        end
+    end
+    return acc
+end
+
+### We could use generated functions so I would not need to make infinity iterator.
+function evaluate(loop::Loop)
+    acc = []
+
+    nparalel = length(loop.master.slaves)
+    unresolved = 0
+    
+    @sync while true
+
+        while unresolved>nparalel end
+
+        x = getx(loop,nothing)
+        if x==nothing
+            break
+        end
+        
+        @async begin
+            unresolved+=1
+            res = getres(loop,x)
+            unresolved-=1
+            push!(acc,res)
+            # This is the point where one may think of the next iteration.
+            # Could spawning be a better option?
+        end
+    end
+    return acc
+end
+    
+function evaluate(master::Master,op::Function,l::Learner,stop::Function)
+    wl = WrappedLearner(l, stop, (x,y)->nothing, (x,y)->nothing)
+    loop = Loop(master,op,wl)
+    evaluate(loop)
+end
+
+function evaluate(master::Master,op::Function,l::Learner,iter)
+    iterlength = length(iter)
+
+    count = 0
+    askhook(x,y) = count+=1;
+    stop(l) = count==iterlength
+
+    wl = WrappedLearner(l, stop, askhook, (x,y)->nothing)
+    loop = Loop(master,op,wl)
+    evaluate(loop,iter)
+end
+
+evaluate(master::Master,l::Learner,iter) = evaluate(master,(x,y)->x,l,iter)
+
+
+export ProcMaster, Learner, ask!, tell!, WrappedLearner, IgnorantLearner, evaluate, Loop, captureslave!, releaseslave!
+
+
+### High level interface
+export ProcMaster, Loop, Learner, ask!, tell!, evaluate
 
 end

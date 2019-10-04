@@ -1,90 +1,59 @@
-using Revise
-
 using Distributed
+addprocs(2)
+
 using TaskMaster
 
 ######### Now some testing ###########
 
 ####### Implemntation of Learner interface with iterator ########
 
-import TaskMaster: ask!, tell!, Learner 
+@info "Testing Loop and ProcMaster"
 
-mutable struct IgnorantLearner <: Learner
-    iter
-    state
-end
-IgnorantLearner(iter) = IgnorantLearner(iter,nothing)
+@everywhere f(x) = x^2
 
-function ask!(learner::IgnorantLearner)
-    temp = learner.state==nothing ? iterate(learner.iter) : iterate(learner.iter,learner.state)
-    if temp==nothing
-        return nothing
-    else
-        val,learner.state = temp
-        return val
+master = ProcMaster(f)
+learner = IgnorantLearner(1:10)
+loop = Loop(master,(x,y)->y,learner)
+
+for i in 1:11
+    x = TaskMaster.getx(loop,nothing)
+    if x == nothing
+        break
     end
-end
-
-tell!(learner::IgnorantLearner,m) = nothing
-
-
-@info "Testing bare interface"
-
-@everywhere f(x) = x^2
-
-learner = IgnorantLearner(1:10)
-
-tasks = RemoteChannel(()->Channel{Union{Int,Nothing}}(10))
-results = RemoteChannel(()->Channel{Tuple{Any,Any}}(10))
-
-master = Master(learner,tasks,results)
-for p in workers()
-    captureslave!(p,f,master)
-end
-
-for (xi,yi) in master
-    @show (xi,yi)
-end
-
-@info "Testing simple interface"
-### Works!!!. Hurray!
-
-@everywhere f(x) = x^2
-learner = IgnorantLearner(1:10)
-
-for (xi,yi) in Master(f,learner)
-    @show (xi,yi)
-end
-
-@info "Testing WrappedLearner"
-
-@everywhere f(x) = x^2
-
-learner = IgnorantLearner(1:10)
-wlearner = WrappedLearner(learner,x->x.state!=nothing && x.state>3) 
-
-for (xi,yi) in Master(f,wlearner)
-    @show (xi,yi)
+    @show res = TaskMaster.getres(loop,x)
 end
 
 @info "Testing evaluate"
 
-@everywhere f(x) = x^2
+master = ProcMaster(f)
 learner = IgnorantLearner(1:10)
-evaluate(f,learner)
+loop = Loop(master,(x,y)->y,learner)
+evaluate(loop)
 
-@info "Testing evaluate with a stop condition"
+@info "Testing evaluate with source"
 
-@everywhere f(x) = x^2
+master = ProcMaster(f)
 learner = IgnorantLearner(1:10)
-#evaluate(f,WrappedLearner(learner,learner->learner.state!=nothing && learner.state>3))
-evaluate(f,learner,learner->learner.state!=nothing && learner.state>3)
+loop = Loop(master,(x,y)->y,learner)
+evaluate(loop,1:6) ### In a way looks like a transducer
+
+@info "Testing evaluate with iterator and askhook."
+
+master = ProcMaster(f)
+learner = IgnorantLearner(1:10)
+evaluate(master,learner,1:5)
+
+@info "Testing evaluate with stopping condition"
+
+master = ProcMaster(f)
+learner = IgnorantLearner(1:10)
+evaluate(master,(x,y)->y,learner,l->l.state==4)
 
 @info "Testing capturing and releasing of the slave"
 
 @everywhere f(x) = x^2
 learner = IgnorantLearner(1:10)
-master = Master(f,WorkerPool(),learner)
+master = ProcMaster(f,WorkerPool())
 
 captureslave!(2,f,master)
 captureslave!(3,f,master)
@@ -92,9 +61,3 @@ captureslave!(3,f,master)
 @show releaseslave!(master)
 
 @info "Success!!!"
-
-
-
-
-
-
