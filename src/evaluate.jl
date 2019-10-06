@@ -64,12 +64,11 @@ end
 """
 Easy way to evaluate master with learner and a stopping condition.
 """
-function evaluate(master::Master,l::Learner,stop::Function,iterhook::Function)
-    wl = WrappedLearner(l, stop, (x,y)->nothing, (x,y)->nothing)
-    loop = Loop(master,wl,iterhook)
+function evaluate(loop::Loop,stop::Function)
+    wl = WrappedLearner(loop.learner, stop, (x,y)->nothing, (x,y)->nothing)
+    loop = Loop(loop.master,wl,loop.iterhook)
     evaluate(loop)
 end
-evaluate(master::Master,l::Learner,stop::Function) = evaluate(master,l,stop,x->nothing)
 
 """
 Evaluates until evaluate closes inchannel or iterator ends. Could be also used to pass random numbers. 
@@ -80,7 +79,7 @@ function evaluate(loop::Loop,iter)
     acc = []
     inch = Channel(np)
     outch = Channel(1)
-
+    
     @sync begin
         @async evaluate(loop,inch,outch)
 
@@ -94,7 +93,6 @@ function evaluate(loop::Loop,iter)
             put!(inch,nothing)
         end
 
-        
         while isopen(outch)
             res = take!(outch)
             push!(acc,res)

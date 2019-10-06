@@ -1,6 +1,4 @@
 ### ToDo
-# Fix deprecations of Adaptive.jl [1h]
-# Test the code with Adaptive.jl [1h]
 # Put TaskMaster.jl and Adaptive.jl on Travis. [1h]
 # Initiate documentation building procedure [1h]
 # Submit Adaptive.jl and TaskMaster.jl to the Julia package registry. [1h]
