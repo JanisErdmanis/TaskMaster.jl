@@ -30,7 +30,8 @@ output2 = evaluate(loop,1:6)
 
 master = ProcMaster(f)
 learner = IgnorantLearner(1:10)
-evaluate(master,learner,l->l.state==4)
+loop = Loop(master,learner)
+evaluate(loop,l->l.state==4)
 
 @info "Testing capturing and releasing of the slave"
 
