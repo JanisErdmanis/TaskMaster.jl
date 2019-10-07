@@ -9,15 +9,11 @@ master = ProcMaster(f)
 learner = IgnorantLearner(1:10)
 loop = Loop(master,learner)
 
-@sync begin
-    inch = Channel(Map(identity),1:10)
-    outch = Channel(1)
-    @async evaluate(loop,inch,outch)
+inch = Channel(Map(identity),1:10)
+outch = Channel(10)
 
-    for o in outch
-        @show o
-    end
-    ### Gets stuck at the first element
+@sync begin
+    @async evaluate(loop,inch,outch)
     collect(Map(identity),outch)
 end
 

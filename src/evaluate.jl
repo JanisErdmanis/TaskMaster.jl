@@ -10,7 +10,7 @@ function evaluate(loop::Loop,inch,outch)
     unresolved = 0
     x = 0 ### Needs to be some value of ask! output type
     while true
-        if x!=nothing && unresolved<np
+        if x!=nothing && unresolved<np && isopen(inch)
             i = take!(inch)
             x = ask!(loop.learner,i) 
 
@@ -90,7 +90,7 @@ function evaluate(loop::Loop,iter)
                 end
                 put!(inch,i)
             end
-            put!(inch,nothing)
+            close(inch)
         end
 
         while isopen(outch)
