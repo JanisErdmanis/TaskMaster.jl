@@ -1,12 +1,7 @@
 ### ToDo
-# Put TaskMaster.jl and Adaptive.jl on Travis. [1h]
-# Initiate documentation building procedure [1h]
-# Submit Adaptive.jl and TaskMaster.jl to the Julia package registry. [1h]
-
-# Then
-# Write documentation
+# Register Adaptive.jl
+# Write a documentation
 # Write an anoucement
-# Try to couple TaskMaster with Transducers
 
 module TaskMaster
 
