@@ -12,12 +12,10 @@ tell!(learner::Learner,message) = error("For runner learner needs to implement a
 abstract type Master end
 
 include("abstractions.jl")
-include("procmaster.jl")
+include("workmaster.jl")
 include("evaluate.jl")
 
-export ProcMaster, Learner, ask!, tell!, WrappedLearner, IgnorantLearner, evaluate, Loop, captureslave!, releaseslave!
-
-### High level interface
-export CachedMaster, ProcMaster, Loop, Learner, ask!, tell!, evaluate
+export captureslave!, releaseslave!
+export HistoryMaster, WorkMaster, Loop, IgnorantLearner, ask!, tell!, evaluate!
 
 end

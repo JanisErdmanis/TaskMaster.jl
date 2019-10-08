@@ -47,15 +47,15 @@ tell!(learner::IgnorantLearner,m) = nothing
 
 
 ### Something which would help to reproduce the state of the Learner. 
-mutable struct CachedMaster <: Master
+mutable struct HistoryMaster <: Master
     tasks
     results
     np
 end
 
-nparalel(master::CachedMaster) = master.np
+nparalel(master::HistoryMaster) = master.np
 
-function CachedMaster(output,np)
+function HistoryMaster(output,np)
     N = length(output)
     tasks = Channel{Any}(N)
     results = Channel{Tuple{Any,Any}}(N)
@@ -64,5 +64,5 @@ function CachedMaster(output,np)
         put!(results,oi)
     end
 
-    CachedMaster(tasks,results,np)
+    HistoryMaster(tasks,results,np)
 end

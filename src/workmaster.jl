@@ -1,17 +1,17 @@
 using Distributed
 
-mutable struct ProcMaster <: Master
+mutable struct WorkMaster <: Master
     tasks
     results
     slaves 
 end
 
-nparalel(master::ProcMaster) = length(master.slaves)
+nparalel(master::WorkMaster) = length(master.slaves)
 
 """
 Releases one worker (who is the next one of taking a new task) from the duty calculating function values given him by the master. Returns pid.
 """
-function releaseslave!(master::Master)
+function releaseslave!(master::WorkMaster)
     @assert length(master.slaves)>0
     
     put!(master.tasks,nothing)
@@ -31,7 +31,7 @@ end
 """
 Releases all workers from the Master's duties.
 """
-function releaseall!(master::Master)
+function releaseall!(master::WorkMaster)
     for s in master.slaves
         put!(master.tasks,nothing)
     end
@@ -50,7 +50,7 @@ end
 """
 Gives the slave a duty to follow orders of his new Master
 """
-function captureslave!(pid,f::Function,master::Master)
+function captureslave!(pid,f::Function,master::WorkMaster)
     tasks, results = master.tasks, master.results
     wp = @spawnat pid begin
         while true
@@ -66,14 +66,13 @@ function captureslave!(pid,f::Function,master::Master)
     push!(master.slaves,wp)
 end
 
-#ProcMaster(tasks,results,slaves) = ProcMaster(tasks,results,slaves)
-ProcMaster(tasks,results) = ProcMaster(tasks,results,[])
+WorkMaster(tasks,results) = WorkMaster(tasks,results,[])
 
-function ProcMaster(f::Function,wpool::AbstractWorkerPool)
+function WorkMaster(f::Function,wpool::AbstractWorkerPool)
     tasks = RemoteChannel(()->Channel{Any}(10))
     results = RemoteChannel(()->Channel{Tuple{Any,Any}}(10))
 
-    master = ProcMaster(tasks,results)
+    master = WorkMaster(tasks,results)
     for p in wpool.workers
         captureslave!(p,f,master)
     end
@@ -81,4 +80,4 @@ function ProcMaster(f::Function,wpool::AbstractWorkerPool)
     return master
 end
 
-ProcMaster(f::Function) = ProcMaster(f,WorkerPool(nprocs()==1 ? [1] : workers()))
+WorkMaster(f::Function) = WorkMaster(f,WorkerPool(nprocs()==1 ? [1] : workers()))

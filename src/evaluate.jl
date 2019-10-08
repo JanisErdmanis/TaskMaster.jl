@@ -5,7 +5,7 @@ struct Loop
 end
 Loop(master::Master,learner::Learner) = Loop(master,learner,x->nothing)
 
-function evaluate(loop::Loop,inch,outch)
+function evaluate!(loop::Loop,inch,outch)
     np = nparalel(loop.master)
     unresolved = 0
     x = 0 ### Needs to be some value of ask! output type
@@ -38,13 +38,13 @@ end
 
 Looptr(master,learner) = inch -> Channel() do outch
     loop = Loop(master,learner)
-    evaluate(loop, inch, outch)
+    evaluate!(loop, inch, outch)
 end
 
 """
 Evaluates until evaluate closes inchannel.
 """
-function evaluate(loop::Loop)
+function evaluate!(loop::Loop)
     inch = Channel(1)
     @async while true
         put!(inch,true)
@@ -55,17 +55,21 @@ end
 """
 Easy way to evaluate master with learner and a stopping condition.
 """
-function evaluate(loop::Loop,stop::Function)
+function evaluate!(loop::Loop,stop::Function)
     wl = WrappedLearner(loop.learner, stop, (x,y)->nothing, (x,y)->nothing)
     loop = Loop(loop.master,wl,loop.iterhook)
-    evaluate(loop)
+    evaluate!(loop)
 end
 
 ### Channel(Map(identity)) is the only place where I use transducers.
 """
 Evaluates until evaluate closes inchannel or iterator ends. Could be also used to pass random numbers. 
 """
-function evaluate(loop::Loop,iter)
+function evaluate!(loop::Loop,stop::Function,iter)
+
+    wl = WrappedLearner(loop.learner, stop, (x,y)->nothing, (x,y)->nothing)
+    loop = Loop(loop.master,wl,loop.iterhook)
+    
     inch = Channel(1)
     @async begin
         for i in iter
@@ -75,3 +79,5 @@ function evaluate(loop::Loop,iter)
     end
     inch |> Looptr(loop.master,loop.learner) |> collect
 end
+
+evaluate!(loop::Loop,iter) = evaluate!(loop,learner->false,iter)
