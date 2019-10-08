@@ -1,5 +1,3 @@
-using Transducers
-
 struct Loop
     master::Master
     learner::Learner
@@ -63,7 +61,17 @@ function evaluate(loop::Loop,stop::Function)
     evaluate(loop)
 end
 
+### Channel(Map(identity)) is the only place where I use transducers.
 """
 Evaluates until evaluate closes inchannel or iterator ends. Could be also used to pass random numbers. 
 """
-evaluate(loop::Loop,iter) = Channel(Map(identity),iter) |> Looptr(loop.master,loop.learner) |> collect
+function evaluate(loop::Loop,iter)
+    inch = Channel(1)
+    @async begin
+        for i in iter
+            put!(inch,i)
+        end
+        close(inch)
+    end
+    inch |> Looptr(loop.master,loop.learner) |> collect
+end
