@@ -1,3 +1,4 @@
+# # Introduction
 
 # A very daunting thing to programm is a feedback loop with paralelism. Paralelism introduces stochasticity and thus debugging a feeback loop or the part which learns in such system is painful. On the other hand we have so many different kinds of systems which implments paralelism - processes, threads, GPUs, job schedulers, GRID and etc. And so one ends up writting non-rusable code a case by a case.
 
@@ -77,7 +78,7 @@ output2 = evaluate!(loop,learner->learner.state==7,5:9)
 
 # which will terminate when the laerners state would be 7. A note is that evaluate would continue to execute the previous state of the loop (thus exclamation mark !).
 
-# ## Debugging learner
+# ## Debugging Learner
 
 # Let's imagine a situation where one had spent hours at evaluating the function with a learner. For some particular reason looking at the ouptut the Learner seems had misbehaved. The question then is how could you debug that?
 
