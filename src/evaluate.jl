@@ -1,3 +1,5 @@
+using Transducers
+
 struct Loop
     master::Master
     learner::Learner
@@ -35,30 +37,21 @@ function evaluate(loop::Loop,inch,outch)
     close(outch)
 end
 
+
+Looptr(master,learner) = inch -> Channel() do outch
+    loop = Loop(master,learner)
+    evaluate(loop, inch, outch)
+end
+
 """
 Evaluates until evaluate closes inchannel.
 """
 function evaluate(loop::Loop)
-    np = nparalel(loop.master)
-    
-    acc = []
-    inch = Channel(np)
-    outch = Channel(1)
-
-    @sync begin
-        @async evaluate(loop,inch,outch)
-
-        @async while isopen(inch)
-            put!(inch,true)
-        end
-        
-        while isopen(outch)
-            res = take!(outch)
-            push!(acc,res)
-        end
+    inch = Channel(1)
+    @async while true
+        put!(inch,true)
     end
-    
-    return acc
+    inch |> Looptr(loop.master,loop.learner) |> collect
 end
 
 """
@@ -73,31 +66,4 @@ end
 """
 Evaluates until evaluate closes inchannel or iterator ends. Could be also used to pass random numbers. 
 """
-function evaluate(loop::Loop,iter)
-    np = nparalel(loop.master)
-    
-    acc = []
-    inch = Channel(np)
-    outch = Channel(1)
-    
-    @sync begin
-        @async evaluate(loop,inch,outch)
-
-        @async begin
-            for i in iter
-                if !isopen(inch)
-                    break
-                end
-                put!(inch,i)
-            end
-            close(inch)
-        end
-
-        while isopen(outch)
-            res = take!(outch)
-            push!(acc,res)
-        end
-    end
-    
-    return acc
-end
+evaluate(loop::Loop,iter) = Channel(Map(identity),iter) |> Looptr(loop.master,loop.learner) |> collect
