@@ -1,8 +1,3 @@
-### ToDo
-# Register Adaptive.jl
-# Write a documentation
-# Write an anoucement
-
 module TaskMaster
 
 abstract type Learner end

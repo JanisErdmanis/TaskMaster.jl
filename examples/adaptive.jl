@@ -1,6 +1,6 @@
 # # Adaptive 
 
-# Here I show how one can use Adaptive.jl wrapper to make adaptivelly smapled figures. Before we start let's set up our environment by loading a packages:
+# Here I show how one can use [Adaptive.jl](https://github.com/akels/Adaptive.jl) wrapper for [python adaptive package](https://github.com/python-adaptive/adaptive) to make adaptively sampled figures. Before we start, let's set up our environment by loading packages:
 using Distributed
 addprocs(2)
 using TaskMaster
