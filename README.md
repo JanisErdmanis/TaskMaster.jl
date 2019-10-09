@@ -2,6 +2,7 @@
 
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://akels.github.io/TaskMaster.jl/stable)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://akels.github.io/TaskMaster.jl/dev)
+[![Build Status](https://travis-ci.org/akels/TaskMaster.jl.svg?branch=master)](https://travis-ci.org/akels/TaskMaster.jl)
 
 A very daunting thing to program is a feedback loop with parallelism. Parallelism introduces stochasticity and thus debugging a feedback loop, or the part which learns in such a system is painful. On the other hand, we have so many different kinds of systems which implement parallelism - processes, threads, GPUs, job schedulers, GRID, etc. And so one ends up writing non-reusable code a case by a case.
 
