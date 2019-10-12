@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Adaptive · TaskMaster.jl</title><link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/4.2.0/normalize.min.css" rel="stylesheet" type="text/css"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link href="../assets/documenter.css" rel="stylesheet" type="text/css"/></head><body><nav class="toc"><h1>TaskMaster.jl</h1><select id="version-selector" onChange="window.location.href=this.value" style="visibility: hidden"></select><form class="search" id="search-form" action="../search/"><input id="search-query" name="q" type="text" placeholder="Search docs"/></form><ul><li><a class="toctext" href="../">Introduction</a></li><li class="current"><a class="toctext" href>Adaptive</a><ul class="internal"><li><a class="toctext" href="#AdaptiveLearner1D-1">AdaptiveLearner1D</a></li><li><a class="toctext" href="#AdaptiveLearner2D-1">AdaptiveLearner2D</a></li></ul></li></ul></nav><article id="docs"><header><nav><ul><li><a href>Adaptive</a></li></ul><a class="edit-page" href="https://github.com/akels/TaskMaster.jl/blob/master/examples/adaptive.jl"><span class="fa"></span> Edit on GitHub</a></nav><hr/><div id="topbar"><span>Adaptive</span><a class="fa fa-bars" href="#"></a></div></header><h1><a class="nav-anchor" id="Adaptive-1" href="#Adaptive-1">Adaptive</a></h1><p>Here I show how one can use <a href="https://github.com/akels/Adaptive.jl">Adaptive.jl</a> wrapper for <a href="https://github.com/python-adaptive/adaptive">python adaptive package</a> to make adaptively sampled figures. Before we start, let&#39;s set up our environment by loading packages:</p><pre><code class="language-">using Distributed
+addprocs(2)
+using TaskMaster
+using Adaptive
+using PyPlot</code></pre><p>where Adaptive.jl at the moment needs to be added directly from the GitHub repository.</p><h2><a class="nav-anchor" id="AdaptiveLearner1D-1" href="#AdaptiveLearner1D-1">AdaptiveLearner1D</a></h2><pre><code class="language-">@everywhere f(x) = exp(-x^2)
+
+fig = figure()
+
+x = collect(range(-2,stop=2,length=200))
+plot(x,f.(x),label=L&quot;e^{-x^2}&quot;)
+
+xx = collect(range(-2,stop=2,length=20))
+plot(xx,f.(xx),&quot;.-&quot;,label=&quot;even sampling&quot;)
+
+master = WorkMaster(f)
+learner1d = AdaptiveLearner1D((-2,+2))
+loop = Loop(master,learner1d)
+evaluate!(loop,1:20)
+
+plot(learner1d.x,learner1d.y,&quot;.-&quot;,label=&quot;AdaptiveLearner1D&quot;)
+
+legend()
+savefig(&quot;learner1d.svg&quot;)</code></pre><p><img src="../learner1d.svg" alt/></p><h2><a class="nav-anchor" id="AdaptiveLearner2D-1" href="#AdaptiveLearner2D-1">AdaptiveLearner2D</a></h2><pre><code class="language-">@everywhere f(p) = exp(-p[1]^2 - p[2]^2)
+
+master = WorkMaster(f)
+learner2d = AdaptiveLearner2D([(-3,+3),(-3,+3)])
+loop = Loop(master,learner2d)
+evaluate!(loop,learner-&gt;learner.loss()&lt;0.05)
+
+fig = figure()
+
+p,tri,v = learner2d.points, learner2d.vertices, learner2d.values
+
+tricontourf(p[:,1],p[:,2],tri.-1,v)
+triplot(p[:,1],p[:,2],tri.-1,&quot;k.-&quot;)
+
+savefig(&quot;learner2d.svg&quot;)</code></pre><p><img src="../learner2d.svg" alt/></p><footer><hr/><a class="previous" href="../"><span class="direction">Previous</span><span class="title">Introduction</span></a></footer></article></body></html>
