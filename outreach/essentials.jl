@@ -11,8 +11,6 @@ end
 tasks = Channel()
 results = Channel()
 
-
-
 unresolved = 0 
 while true
 
@@ -36,8 +34,6 @@ while true
     unresolved -= 1
     
 end
-
-
 
 using Adaptive
 using TaskMaster
