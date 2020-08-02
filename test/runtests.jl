@@ -1,5 +1,5 @@
 using Distributed
-addprocs(2)
+#addprocs(2)
 
 using TaskMaster
 
@@ -43,5 +43,18 @@ captureslave!(2,f,master)
 captureslave!(3,f,master)
 @show releaseslave!(master)
 @show releaseslave!(master)
+
+@info "Testing a more coincise API"
+
+@everywhere f(x) = x^2
+
+learner = IgnorantLearner(1:10)
+results = play!(learner,f,x->x.state==4)
+
+@info "Testing replay of the learner"
+
+learner = IgnorantLearner(1:10)
+replay!(learner, results)
+play!(learner,f,x->x.state==8)
 
 @info "Success!!!"

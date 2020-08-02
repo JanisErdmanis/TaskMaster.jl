@@ -66,3 +66,39 @@ function HistoryMaster(output,np)
 
     HistoryMaster(tasks,results,np)
 end
+
+
+### 
+
+struct PlayRes
+    input::Union{Nothing,Vector}
+    output::Vector
+    nprocs::Int
+end 
+
+function play!(learner, f::Function, stop::Function)#,cond::Function) ### I could also pass WorkerPool here
+    master = WorkMaster(f)
+    nprocs = length(master.slaves)
+    loop = Loop(master, learner)
+    nodes = evaluate!(loop, stop)
+    releaseall!(master)
+    return PlayRes(nothing, nodes, nprocs)
+end
+
+
+function replay!(learner,nodes::Array{Any}) ### I could make a st function as an optional argument
+    for n in nodes
+        tell!(learner,n)
+    end
+end
+
+function replay!(learner, ldata::PlayRes, n::Int)
+    @assert n <= length(ldata.output)
+    master = HistoryMaster(ldata.output,ldata.nprocs) 
+    loop = Loop(master,learner) 
+    iter = 1:n
+    evaluate!(loop,iter)
+end
+
+replay!(learner, ldata::PlayRes) = replay!(learner, ldata, length(ldata.output))
+

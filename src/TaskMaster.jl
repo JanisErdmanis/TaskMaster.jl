@@ -10,7 +10,9 @@ include("abstractions.jl")
 include("workmaster.jl")
 include("evaluate.jl")
 
-export captureslave!, releaseslave!
+export captureslave!, releaseslave!, releaseall!
 export HistoryMaster, WorkMaster, Loop, IgnorantLearner, ask!, tell!, evaluate!
+
+export play!, replay!, PlayRes
 
 end

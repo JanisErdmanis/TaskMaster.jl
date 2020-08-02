@@ -70,7 +70,7 @@ function evaluate!(loop::Loop,stop::Function,iter)
     wl = WrappedLearner(loop.learner, stop, (x,y)->nothing, (x,y)->nothing)
     loop = Loop(loop.master,wl,loop.iterhook)
     
-    inch = Channel(1)
+    inch = Channel(0)
     @async begin
         for i in iter
             put!(inch,i)

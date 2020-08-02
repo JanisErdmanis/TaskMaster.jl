@@ -51,3 +51,5 @@ triplot(p[:,1],p[:,2],tri.-1,"k.-")
 savefig("learner2d.svg")
 
 # ![](learner2d.svg)
+
+
